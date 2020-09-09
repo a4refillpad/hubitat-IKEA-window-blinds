@@ -14,10 +14,12 @@
  *  first release for IKEA smart window blinds
  *  Modified for hubitat use
  *  
- *  added fallback refreshing calls if blinds decide not to upstate status
+ *  added fallback refreshing calls if blinds decide not to update status
  *  added position event updates to track realtime open percentage in dashboard
  *  added max open percentage preference (optional)
  *  added hardOpen function in case you need to reset blind height occasionally esp useful with above function
+ *  added fix to execute the open function if "setposition 100" occurs - this allows Dashboard and Alexa to acknowledge max open level
+ *  fixed bug with final state of blinds, now always ending with either open or closed state
  *  
  *  known issue: fingerprint does not seem to be working right now just manually assign the driver after device is added 
  *
@@ -103,7 +105,8 @@ def levelEventHandler(currentLevel) {
     def lastLevel = device.currentValue("level")
     log.debug "levelEventHandle - currentLevel: ${currentLevel} lastLevel: ${lastLevel}"
     if (lastLevel == "undefined" || currentLevel == lastLevel) { //Ignore invalid reports
-        log.debug "Ignore invalid reports"
+        log.debug "undefined lastLevel"
+        runIn(3, "updateFinalState", [overwrite:true])
     } else {
         sendEvent(name: "level", value: currentLevel)
         sendEvent(name: "position", value: currentLevel)
@@ -115,22 +118,18 @@ def levelEventHandler(currentLevel) {
             } else if (lastLevel > currentLevel) {
                 sendEvent([name:"windowShade", value: "closing"])
             }
-            runIn(3, "updateFinalState", [overwrite:true])
         }
     }
-    runIn(3, "updateFinalState", [overwrite:true])
     if (lastLevel != currentLevel) {
         log.debug "newlevel: ${newLevel} currentlevel: ${currentLevel} lastlevel: ${lastLevel}"
-        runIn(5, refresh)
+        runIn(1, refresh)
     }
 }
 
 def updateFinalState() {
     def level = device.currentValue("level")
     log.debug "updateFinalState: ${level}"
-    if (level > 0 && level < openLevel) {
-        sendEvent(name: "windowShade", value: "partially open")
-    }
+    sendEvent(name: "windowShade", value: level == 0 ? "closed" : "open")
 }
 
 def close() {
@@ -160,9 +159,13 @@ def setLevel(data, rate = null) {
     runIn(5, refresh)
     data = data.toInteger()
     log.info "setLevel()"
-    def cmd
-    cmd = zigbee.command(CLUSTER_WINDOW_COVERING, COMMAND_GOTO_LIFT_PERCENTAGE, zigbee.convertToHexString(100 - data, 2))
-    return cmd
+    if (data == 100) {
+        open()
+    } else {
+        def cmd
+        cmd = zigbee.command(CLUSTER_WINDOW_COVERING, COMMAND_GOTO_LIFT_PERCENTAGE, zigbee.convertToHexString(100 - data, 2))
+        return cmd
+    }
 }
 
 def pause() {
@@ -170,13 +173,6 @@ def pause() {
     zigbee.command(CLUSTER_WINDOW_COVERING, COMMAND_PAUSE)
 }
 
-/**
- * PING is used by Device-Watch in attempt to reach the Device
- * */
-
-def ping() {
-    return zigbee.readAttribute(CLUSTER_BATTERY_LEVEL, 0x0021) // Read the Battery Level
-}
 
 def refresh() {
     log.info "refresh()"
@@ -188,13 +184,12 @@ def refresh() {
 }
 
 def configure() {
-    // Device-Watch allows 2 check-in misses from device + ping (plus 2 min lag time)
     log.info "configure()"
     sendEvent(name: "checkInterval", value: 2 * 60 * 60 + 2 * 60, displayed: false, data: [protocol: "zigbee", hubHardwareId: device.hub.hardwareID])
     log.debug "Configuring Reporting and Bindings."
 
     def cmds
-    cmds = zigbee.configureReporting(CLUSTER_WINDOW_COVERING, ATTRIBUTE_POSITION_LIFT, DataType.UINT8, 0, 600, null) + zigbee.configureReporting(CLUSTER_BATTERY_LEVEL, 0x0021, DataType.UINT8, 600, 21600, 0x01)
+    cmds = zigbee.configureReporting(CLUSTER_WINDOW_COVERING, ATTRIBUTE_POSITION_LIFT, DataType.UINT8, 0, 600, 0x01) + zigbee.configureReporting(CLUSTER_BATTERY_LEVEL, 0x0021, DataType.UINT8, 600, 21600, 0x01)
 
     return refresh() + cmds
 }
