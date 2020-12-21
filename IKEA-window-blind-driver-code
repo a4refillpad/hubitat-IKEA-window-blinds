@@ -20,6 +20,7 @@
  *  added hardOpen function in case you need to reset blind height occasionally esp useful with above function
  *  added fix to execute the open function if "setposition 100" occurs - this allows Dashboard and Alexa to acknowledge max open level
  *  fixed bug with final state of blinds, now always ending with either open or closed state
+ *  added hubitat standard debug and info toggles
  *  
  *  known issue: fingerprint does not seem to be working right now just manually assign the driver after device is added 
  *
@@ -28,7 +29,7 @@
 import hubitat.zigbee.zcl.DataType
 
 metadata {
-    definition(name: "IKEA Window Blinds", namespace: "a4refillpad", author: "Wayne Man", ocfDeviceType: "oic.d.blind", mnmn: "SmartThings", vid: "generic-shade") {
+    definition(name: "IKEA Window Blinds", namespace: "a4refillpad", author: "Wayne Man") {
         capability "Actuator"
         capability "Configuration"
         capability "Refresh"
@@ -51,6 +52,8 @@ metadata {
             input name: "openLevel", type: "number", defaultValue: 0, range: "0..100", title: "Max open level",
                 description: "Max percentage open when Open function is called\n" +
                              "(delete or set value to 0 to disable this)"
+		    input name: "debugOutput", type: "bool", title: "Enable debug logging?", defaultValue: true
+		    input name: "descTextOutput", type: "bool", title: "Enable descriptionText logging?", defaultValue: true
         }
   
 }
@@ -79,14 +82,14 @@ private List<Map> collectAttributes(Map descMap) {
 
 // Parse incoming device messages to generate events
 def parse(String description) {
-    log.debug "description:- ${description}"
+    if (debugOutput) log.debug "description:- ${description}"
     def now = new Date().format("yyyy MMM dd EEE h:mm:ss a", location.timeZone)
     //  send event for heartbeat    
     sendEvent(name: "lastCheckin", value: now)
     if (description?.startsWith("read attr -")) {
         Map descMap = zigbee.parseDescriptionAsMap(description)
         if (descMap?.clusterInt == CLUSTER_WINDOW_COVERING && descMap.value) {
-            log.debug "attr: ${descMap?.attrInt}, value: ${descMap?.value}, descValue: ${Integer.parseInt(descMap.value, 16)}, ${device.getDataValue("model")}"
+            if (debugOutput) log.debug "attr: ${descMap?.attrInt}, value: ${descMap?.value}, descValue: ${Integer.parseInt(descMap.value, 16)}, ${device.getDataValue("model")}"
             List<Map> descMaps = collectAttributes(descMap)
             def liftmap = descMaps.find { it.attrInt == ATTRIBUTE_POSITION_LIFT }
             if (liftmap && liftmap.value) {
@@ -95,7 +98,7 @@ def parse(String description) {
             }
         } 
         if (descMap?.clusterInt == CLUSTER_BATTERY_LEVEL && descMap.value) {
-            log.debug "attr: ${descMap?.attrInt}, value: ${descMap?.value}, descValue: ${Integer.parseInt(descMap.value, 16)}"
+            if (debugOutput) log.debug "attr: ${descMap?.attrInt}, value: ${descMap?.value}, descValue: ${Integer.parseInt(descMap.value, 16)}"
             sendEvent(name: "battery", value: Integer.parseInt(descMap.value, 16))
         }
     }
@@ -103,9 +106,9 @@ def parse(String description) {
 
 def levelEventHandler(currentLevel) {
     def lastLevel = device.currentValue("level")
-    log.debug "levelEventHandle - currentLevel: ${currentLevel} lastLevel: ${lastLevel}"
+    if (debugOutput) log.debug "levelEventHandle - currentLevel: ${currentLevel} lastLevel: ${lastLevel}"
     if (lastLevel == "undefined" || currentLevel == lastLevel) { //Ignore invalid reports
-        log.debug "undefined lastLevel"
+        if (debugOutput) log.debug "undefined lastLevel"
         runIn(3, "updateFinalState", [overwrite:true])
     } else {
         sendEvent(name: "level", value: currentLevel)
@@ -121,25 +124,25 @@ def levelEventHandler(currentLevel) {
         }
     }
     if (lastLevel != currentLevel) {
-        log.debug "newlevel: ${newLevel} currentlevel: ${currentLevel} lastlevel: ${lastLevel}"
+        if (debugOutput) log.debug "newlevel: ${newLevel} currentlevel: ${currentLevel} lastlevel: ${lastLevel}"
         runIn(1, refresh)
     }
 }
 
 def updateFinalState() {
     def level = device.currentValue("level")
-    log.debug "updateFinalState: ${level}"
+    if (debugOutput) log.debug "updateFinalState: ${level}"
     sendEvent(name: "windowShade", value: level == 0 ? "closed" : "open")
 }
 
 def close() {
-    log.info "close()"
+    if (descTextOutput) log.info "close()"
     runIn(5, refresh)
     zigbee.command(CLUSTER_WINDOW_COVERING, COMMAND_CLOSE)
 }
 
 def open() {
-    log.info "open()"
+    if (descTextOutput) log.info "open()"
     runIn(5, refresh)
     if (openLevel) {
         setLevel(openLevel)
@@ -149,7 +152,7 @@ def open() {
 }
 
 def hardOpen() {
-    log.info "hardOpen()"
+    if (descTextOutput) log.info "hardOpen()"
     runIn(5, refresh)
     zigbee.command(CLUSTER_WINDOW_COVERING, COMMAND_OPEN)
     
@@ -158,7 +161,7 @@ def hardOpen() {
 def setLevel(data, rate = null) {
     runIn(5, refresh)
     data = data.toInteger()
-    log.info "setLevel()"
+    if (descTextOutput) log.info "setLevel()"
     if (data == 100) {
         open()
     } else {
@@ -169,13 +172,13 @@ def setLevel(data, rate = null) {
 }
 
 def pause() {
-    log.info "pause()"
+    if (descTextOutput) log.info "pause()"
     zigbee.command(CLUSTER_WINDOW_COVERING, COMMAND_PAUSE)
 }
 
 
 def refresh() {
-    log.info "refresh()"
+    if (descTextOutput) log.info "refresh()"
     
     def cmds
     cmds = zigbee.readAttribute(CLUSTER_WINDOW_COVERING, ATTRIBUTE_POSITION_LIFT) + zigbee.readAttribute(CLUSTER_BATTERY_LEVEL, 0x0021) 
@@ -184,9 +187,9 @@ def refresh() {
 }
 
 def configure() {
-    log.info "configure()"
+    if (descTextOutput) log.info "configure()"
     sendEvent(name: "checkInterval", value: 2 * 60 * 60 + 2 * 60, displayed: false, data: [protocol: "zigbee", hubHardwareId: device.hub.hardwareID])
-    log.debug "Configuring Reporting and Bindings."
+    if (debugOutput) log.debug "Configuring Reporting and Bindings."
 
     def cmds
     cmds = zigbee.configureReporting(CLUSTER_WINDOW_COVERING, ATTRIBUTE_POSITION_LIFT, DataType.UINT8, 0, 600, 0x01) + zigbee.configureReporting(CLUSTER_BATTERY_LEVEL, 0x0021, DataType.UINT8, 600, 21600, 0x01)
@@ -196,4 +199,14 @@ def configure() {
 
 def setPosition(value){
 	setLevel(value)
+}
+
+def updated() {
+	unschedule()
+	if (debugOutput) runIn(1800,logsOff)
+}
+
+def logsOff(){
+	log.warn "debug logging disabled..."
+	device.updateSetting("debugOutput",[value:"false",type:"bool"])
 }
