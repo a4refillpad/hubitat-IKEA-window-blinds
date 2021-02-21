@@ -21,8 +21,9 @@
  *  added fix to execute the open function if "setposition 100" occurs - this allows Dashboard and Alexa to acknowledge max open level
  *  fixed bug with final state of blinds, now always ending with either open or closed state
  *  added hubitat standard debug and info toggles
+ *. added on/off switch events and methods for better group and dashboard compatibility
  *  
- *  known issue: fingerprint does not seem to be working right now just manually assign the driver after device is added 
+ *  known issue: fingerprint does not seem to be working right 100% just manually assign the driver after device is added if it doesn't detect
  *
  *  IMPORTANT: remember to hit configure button after device is added.
  */
@@ -35,7 +36,8 @@ metadata {
         capability "Refresh"
         capability "Window Shade"
         capability "Health Check"
-        capability "Switch Level"
+		capability "Switch"
+		capability "Switch Level"
         capability "Battery"
 
         command "pause"
@@ -115,6 +117,7 @@ def levelEventHandler(currentLevel) {
         sendEvent(name: "position", value: currentLevel)
         if (currentLevel == 0 || currentLevel >= 97) {
             sendEvent(name: "windowShade", value: currentLevel == 0 ? "closed" : "open")
+            sendEvent(name: "switch", value: level == 0 ? "off" : "on", displayed: false)
         } else {
             if (lastLevel < currentLevel) {
                 sendEvent([name:"windowShade", value: "opening"])
@@ -133,6 +136,7 @@ def updateFinalState() {
     def level = device.currentValue("level")
     if (debugOutput) log.debug "updateFinalState: ${level}"
     sendEvent(name: "windowShade", value: level == 0 ? "closed" : "open")
+    sendEvent(name: "switch", value: level == 0 ? "off" : "on", displayed: false)
 }
 
 def close() {
@@ -149,6 +153,14 @@ def open() {
     } else {
         hardOpen()
     }
+}
+
+def on() {
+    open()
+}
+
+def off() {
+    close()
 }
 
 def hardOpen() {
