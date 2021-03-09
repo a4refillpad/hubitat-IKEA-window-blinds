@@ -1,0 +1,16 @@
+{
+  "packageName": "IKEA Window Blinds",
+  "author": "Wayne Man",
+  "version": "0.1.0",
+  "minimumHEVersion": "2.1.9",
+  "dateReleased": "2020-09-09",
+  "drivers": [
+    {
+      "id": "69d97ae9-b9ab-4e4d-be4f-5f3b3162e147",
+      "name": "IKEA Window Blinds",
+      "namespace": "a4refillpad",
+      "location": "https://raw.githubusercontent.com/a4refillpad/hubitat-IKEA-window-blinds/master/IKEA-window-blind-driver-code",
+      "required": true
+    }
+  ]
+}
