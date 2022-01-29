@@ -22,6 +22,7 @@
  *  fixed bug with final state of blinds, now always ending with either open or closed state
  *  added hubitat standard debug and info toggles
  *. added on/off switch events and methods for better group and dashboard compatibility
+ *  limited the reporting frequency of the blind level in order to prevent overloading the zigbee stack on hubitat and removed some legacy code
  *  
  *  known issue: fingerprint does not seem to be working right 100% just manually assign the driver after device is added if it doesn't detect
  *
@@ -36,8 +37,8 @@ metadata {
         capability "Refresh"
         capability "Window Shade"
         capability "Health Check"
-		capability "Switch"
-		capability "Switch Level"
+	capability "Switch"
+	capability "Switch Level"
         capability "Battery"
 
         command "pause"
@@ -51,11 +52,11 @@ metadata {
 
         preferences {
 
-            input name: "openLevel", type: "number", defaultValue: 0, range: "0..100", title: "Max open level",
+            	input name: "openLevel", type: "number", defaultValue: 0, range: "0..100", title: "Max open level",
                 description: "Max percentage open when Open function is called\n" +
                              "(delete or set value to 0 to disable this)"
-		    input name: "debugOutput", type: "bool", title: "Enable debug logging?", defaultValue: true
-		    input name: "descTextOutput", type: "bool", title: "Enable descriptionText logging?", defaultValue: true
+		input name: "debugOutput", type: "bool", title: "Enable debug logging?", defaultValue: true
+		input name: "descTextOutput", type: "bool", title: "Enable descriptionText logging?", defaultValue: true
         }
   
 }
@@ -200,11 +201,11 @@ def refresh() {
 
 def configure() {
     if (descTextOutput) log.info "configure()"
-    sendEvent(name: "checkInterval", value: 2 * 60 * 60 + 2 * 60, displayed: false, data: [protocol: "zigbee", hubHardwareId: device.hub.hardwareID])
+
     if (debugOutput) log.debug "Configuring Reporting and Bindings."
 
     def cmds
-    cmds = zigbee.configureReporting(CLUSTER_WINDOW_COVERING, ATTRIBUTE_POSITION_LIFT, DataType.UINT8, 0, 600, 0x01) + zigbee.configureReporting(CLUSTER_BATTERY_LEVEL, 0x0021, DataType.UINT8, 600, 21600, 0x01)
+    cmds = zigbee.configureReporting(CLUSTER_WINDOW_COVERING, ATTRIBUTE_POSITION_LIFT, DataType.UINT8, 10, 600, 0x01) + zigbee.configureReporting(CLUSTER_BATTERY_LEVEL, 0x0021, DataType.UINT8, 600, 21600, 0x01)
 
     return refresh() + cmds
 }
