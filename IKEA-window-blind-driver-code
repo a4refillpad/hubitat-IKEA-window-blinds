@@ -129,7 +129,7 @@ def levelEventHandler(currentLevel) {
     }
     if (lastLevel != currentLevel) {
         if (debugOutput) log.debug "newlevel: ${newLevel} currentlevel: ${currentLevel} lastlevel: ${lastLevel}"
-        runIn(1, refresh)
+        runIn(5, refresh)
     }
 }
 
@@ -205,7 +205,7 @@ def configure() {
     if (debugOutput) log.debug "Configuring Reporting and Bindings."
 
     def cmds
-    cmds = zigbee.configureReporting(CLUSTER_WINDOW_COVERING, ATTRIBUTE_POSITION_LIFT, DataType.UINT8, 10, 600, 0x01) + zigbee.configureReporting(CLUSTER_BATTERY_LEVEL, 0x0021, DataType.UINT8, 600, 21600, 0x01)
+    cmds = zigbee.configureReporting(CLUSTER_WINDOW_COVERING, ATTRIBUTE_POSITION_LIFT, DataType.UINT8, 3, 600, 0x01) + zigbee.configureReporting(CLUSTER_BATTERY_LEVEL, 0x0021, DataType.UINT8, 600, 21600, 0x01)
 
     return refresh() + cmds
 }
