@@ -26,7 +26,7 @@
  *  
  *  known issue: fingerprint does not seem to be working right 100% just manually assign the driver after device is added if it doesn't detect
  *
- *  IMPORTANT: remember to hit configure button after device is added.
+ *  IMPORTANT: remember to hit configure button after device is added and save preferences.
  */
 import hubitat.zigbee.zcl.DataType
 
@@ -48,6 +48,7 @@ metadata {
         attribute "lastOpened", "String"
 
         fingerprint inClusters: "0000,0001,0003,0004", manufacturer: "IKEA of Sweden", model: "FYRTUR block-out roller blind"
+        fingerprint inClusters: "0000,0001,0003,0004", manufacturer: "IKEA of Sweden", model: "TREDANSEN block-out cellul blind"
     }
 
         preferences {
@@ -102,7 +103,7 @@ def parse(String description) {
         } 
         if (descMap?.clusterInt == CLUSTER_BATTERY_LEVEL && descMap.value) {
             if (debugOutput) log.debug "attr: ${descMap?.attrInt}, value: ${descMap?.value}, descValue: ${Integer.parseInt(descMap.value, 16)}"
-            sendEvent(name: "battery", value: Integer.parseInt(descMap.value, 16))
+            sendEvent(name: "battery", value: Integer.parseInt(descMap.value, 16), unit: "%")
         }
     }
 }
